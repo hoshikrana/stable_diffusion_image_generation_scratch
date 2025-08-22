@@ -9,6 +9,12 @@ device = "cuda" if torch.cuda.is_available() else "cpu"
 engine = StableDiffusionEngine(device=device)
 engine.load_models()
 
+def set_loading():
+    return "Image generating, please wait..."
+
+def clear_status():
+    return ""
+
 def generate_image(
     prompt,
     uncond_prompt="blurry, low-res",
@@ -43,10 +49,10 @@ def generate_image(
             generated_image = (generated_image * 255).clip(0, 255).astype('uint8')
         
         img = Image.fromarray(generated_image)
-        return img
+        return img, ""
 
     except Exception as e:
-        return f"Error: {e}\n\nTraceback:\n{traceback.format_exc()}"
+        return None, f"Error: {e}\n\nTraceback:\n{traceback.format_exc()}"
 
 with gr.Blocks() as demo:
     prompt = gr.Textbox(lines=2, label="Prompt")
@@ -54,28 +60,20 @@ with gr.Blocks() as demo:
     strength = gr.Slider(minimum=0.1, maximum=1.0, value=0.8, label="Strength")
     steps = gr.Slider(minimum=10, maximum=100, step=1, value=20, label="Inference Steps")
     input_image = gr.Image(type="pil", label="Input Image (optional)")
+    
     output_image = gr.Image(type="pil")
     status = gr.Textbox(value="", interactive=False, label="Status")
 
-    def run_generate(prompt, negative_prompt, strength, steps, input_image_file):
-        status.value = "Image generating, please wait..."
-        result = generate_image(
-            prompt=prompt,
-            uncond_prompt=negative_prompt,
-            strength=strength,
-            n_inference_steps=steps,
-            input_image_file=input_image_file,
-        )
-        status.value = ""
-        return result
-
     btn = gr.Button("Generate")
+
+    # On button click, first update the status box to loading message
+    btn.click(set_loading, inputs=None, outputs=status)
+    # Then generate the image; this will also clear the status message on success or show error
     btn.click(
-        fn=run_generate,
-        inputs=[prompt, negative_prompt, strength, steps, input_image],
-        outputs=output_image,
+        generate_image,
+        inputs=[prompt, negative_prompt, strength, True, 7.5, "ddpm", steps, 42, input_image],
+        outputs=[output_image, status]
     )
-    btn.click(lambda: gr.Textbox.update(value="Image generating, please wait..."), [], status, queue=False)
-    btn.click(lambda: gr.Textbox.update(value=""), [], status, queue=False, delay=6000)
+    # Optionally clear status after some time with a timer or user action (not shown here)
 
 demo.launch()
