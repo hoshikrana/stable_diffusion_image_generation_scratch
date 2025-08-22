@@ -3,6 +3,7 @@ import numpy as np
 from PIL import Image
 import traceback
 from model_loader import load_input_image, StableDiffusionEngine
+import torch
 
 device = "cuda" if torch.cuda.is_available() else "cpu"
 engine = StableDiffusionEngine(device=device)
