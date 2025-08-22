@@ -4,7 +4,8 @@ from PIL import Image
 import traceback
 from model_loader import load_input_image, StableDiffusionEngine
 
-engine = StableDiffusionEngine(device='cpu')
+device = "cuda" if torch.cuda.is_available() else "cpu"
+engine = StableDiffusionEngine(device=device)
 engine.load_models()
 
 def generate_image(
