@@ -7,6 +7,16 @@ from pipeline import generate
 from PIL import Image
 import numpy as np
 
+def load_input_image(image_file, device='cpu'):
+    """
+    Load and preprocess an input image file to a tensor on the specified device.
+    """
+    image = Image.open(image_file).convert("RGB")
+    # Resize or preprocess if needed (example: 512x512)
+    image = image.resize((512, 512))
+    image = np.array(image).astype(np.float32) / 255.0
+    tensor = torch.from_numpy(image).permute(2, 0, 1).unsqueeze(0).to(device)
+    return tensor
 
 class StableDiffusionEngine:
     def __init__(self, device):
