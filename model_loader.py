@@ -68,7 +68,10 @@ class StableDiffusionEngine:
             decoder_model.load_state_dict(decoder_weights)
             diffusion_model.load_state_dict(diffusion_weights)
 
-            tokenizer = CLIPTokenizer.from_pretrained("hoshikrana/stable_diffusion_image_generation_v1")
+            tokenizer = CLIPTokenizer.from_pretrained(
+                "hoshikrana/stable_diffusion_image_generation_v1", 
+                subfolder="tokenizer"
+            )
 
             print(f"Tokenizer loaded from repo {self.repo_id}")
 
