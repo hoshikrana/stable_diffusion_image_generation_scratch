@@ -1,35 +1,12 @@
+from huggingface_hub import hf_hub_download
+from safetensors.torch import load_file
+from transformers import CLIPTokenizer
+import torch
+from Stable_Diffusion import clip, encoder, decoder, diffusion
+from pipeline import generate
 from PIL import Image
 import numpy as np
-import torch
-from Stable_Diffusion import encoder, decoder, diffusion, clip
-from transformers import CLIPTokenizer
-from pipeline import generate
-import matplotlib.pyplot as plt
 
-
-
-def load_input_image(image_path, device='cpu'):
-    """
-    Load and preprocess the input image.
-    Args:
-        image_path (str): Path to the input image.
-        device (torch.device): Device to load the image onto.
-    Returns:
-        torch.Tensor: Preprocessed image tensor.
-    """
-    image = Image.open(image_path).convert("RGB")
-    # Resize the image using PIL
-    image = image.resize((512, 512))
-    # Convert the PIL image to a NumPy array and normalize
-    image = np.array(image).astype(np.float32) / 255.0
-    # Convert the NumPy array to a PyTorch tensor, permute dimensions, add batch dimension, and move to device
-    image = torch.from_numpy(image).permute(2, 0, 1).unsqueeze(0).to(device)
-    return image
-
-
-
-import torch
-from PIL import Image
 
 class StableDiffusionEngine:
     def __init__(self, device):
@@ -37,67 +14,74 @@ class StableDiffusionEngine:
         self.models = None
         self.tokenizer = None
 
-        # Paths for models and tokenizer
-        self.clip_model_path = r"D:\rana\ALL\Project_SD\Pretrained_Data\clip_model_state_dict.pth"
-        self.encoder_model_path = r"D:\rana\ALL\Project_SD\Pretrained_Data\encoder_model_state_dict.pth"
-        self.decoder_model_path = r"D:\rana\ALL\Project_SD\Pretrained_Data\decoder_model_state_dict.pth"
-        self.diffusion_model_path = r"D:\rana\ALL\Project_SD\Pretrained_Data\diffusion_model_state_dict.pth"
-        self.tokenizer_save_directory = r"D:\rana\ALL\Project_SD\Pretrained_Data\tokenizer_save"
+        # Hugging Face repo info
+        self.repo_id = "hoshikrana/stable_diffusion_image_generation_v1"
+        self.clip_filename = "model_safetensors_files/clip_model_state_dict.safetensors"
+        self.encoder_filename = "model_safetensors_files/encoder_model_state_dict.safetensors"
+        self.decoder_filename = "model_safetensors_files/decoder_model_state_dict.safetensors"
+        self.diffusion_filename = "model_safetensors_files/diffusion_model_state_dict.safetensors"
+
+    def download_and_load(self, filename):
+        local_path = hf_hub_download(
+            repo_id=self.repo_id,
+            filename=filename,
+            repo_type="model",
+        )
+        weights = load_file(local_path, device=self.device)
+        return weights
 
     def load_models(self):
-        print("Loading models...")
+        print("Downloading and loading models from Hugging Face Hub...")
 
-        loaded_clip_model = clip.CLIP().to(self.device)
-        loaded_encoder_model = encoder.VAE_Encoder().to(self.device)
-        loaded_decoder_model = decoder.VAE_Decoder().to(self.device)
-        loaded_diffusion_model = diffusion.Diffusion().to(self.device)
+        clip_model = clip.CLIP().to(self.device)
+        encoder_model = encoder.VAE_Encoder().to(self.device)
+        decoder_model = decoder.VAE_Decoder().to(self.device)
+        diffusion_model = diffusion.Diffusion().to(self.device)
 
         try:
-            loaded_clip_model.load_state_dict(torch.load(self.clip_model_path, map_location=self.device))
-            loaded_encoder_model.load_state_dict(torch.load(self.encoder_model_path, map_location=self.device))
-            loaded_decoder_model.load_state_dict(torch.load(self.decoder_model_path, map_location=self.device))
-            loaded_diffusion_model.load_state_dict(torch.load(self.diffusion_model_path, map_location=self.device))
+            clip_weights = self.download_and_load(self.clip_filename)
+            encoder_weights = self.download_and_load(self.encoder_filename)
+            decoder_weights = self.download_and_load(self.decoder_filename)
+            diffusion_weights = self.download_and_load(self.diffusion_filename)
 
-            self.tokenizer = CLIPTokenizer.from_pretrained(self.tokenizer_save_directory)
-            print(f"Tokenizer loaded from {self.tokenizer_save_directory}")
+            clip_model.load_state_dict(clip_weights)
+            encoder_model.load_state_dict(encoder_weights)
+            decoder_model.load_state_dict(decoder_weights)
+            diffusion_model.load_state_dict(diffusion_weights)
 
-            loaded_clip_model.eval()
-            loaded_encoder_model.eval()
-            loaded_decoder_model.eval()
-            loaded_diffusion_model.eval()
+            self.tokenizer = CLIPTokenizer.from_pretrained(self.repo_id)
+            print(f"Tokenizer loaded from repo {self.repo_id}")
+
+            clip_model.eval()
+            encoder_model.eval()
+            decoder_model.eval()
+            diffusion_model.eval()
 
             self.models = {
-                'clip': loaded_clip_model,
-                'encoder': loaded_encoder_model,
-                'decoder': loaded_decoder_model,
-                'diffusion': loaded_diffusion_model,
+                'clip': clip_model,
+                'encoder': encoder_model,
+                'decoder': decoder_model,
+                'diffusion': diffusion_model,
                 'tokenizer': self.tokenizer
             }
-        
-        except FileNotFoundError as e:
-            print(f"Error loading model or tokenizer: {e}. Please check paths.")
-            self.models = None
-            self.tokenizer = None
-        except Exception as e:
-            print(f"An error occurred while loading models or tokenizer: {e}")
-            self.models = None
-            self.tokenizer = None
 
-        return self.models is not None
+            return True
+
+        except Exception as e:
+            print(f"Error downloading or loading models: {e}")
+            self.models = None
+            self.tokenizer = None
+            return False
 
     def preprocess_input_image(self, input_image):
         if input_image is not None:
             if isinstance(input_image, torch.Tensor):
-                # Safe copy for tensor
-                input_tensor = input_image.detach().clone()
+                return input_image.detach().clone().to(self.device)
             elif isinstance(input_image, np.ndarray):
-                # Convert numpy array to tensor
-                input_tensor = torch.from_numpy(input_image)
+                return torch.from_numpy(input_image).to(self.device)
             else:
                 raise ValueError("input_image must be a numpy array or torch tensor")
-            return input_tensor.to(self.device)
         return None
-
 
     def generate_image(
         self,
@@ -112,7 +96,7 @@ class StableDiffusionEngine:
         seed=None
     ):
         if self.models is None or self.tokenizer is None:
-            raise RuntimeError("Models and tokenizer must be loaded before image generation. Call load_models() first.")
+            raise RuntimeError("Models and tokenizer not loaded. Call load_models() first.")
 
         input_image_for_generate = self.preprocess_input_image(input_image)
 
@@ -132,8 +116,8 @@ class StableDiffusionEngine:
         )
 
         output_image = Image.fromarray(output_array)
-        print("Image generation complete.")
         return output_image
+
 
 # # Usage example:
 # engine = StableDiffusionEngine(device='cpu')
