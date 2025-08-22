@@ -1,0 +1,22 @@
+name: Sync to Hugging Face Space
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+          lfs: true
+      - name: Push to Hugging Face Space
+        env:
+          HF_TOKEN: ${{ secrets.HF_TOKEN }}
+        run: |
+          git remote add space https://huggingface.co/spaces/hoshikrana/stable_diffusion_image_generation_scratch
+          git push --force https://hoshikrana:$HF_TOKEN@huggingface.co/spaces/hoshikrana/stable_diffusion_image_generation_v1 main
