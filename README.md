@@ -49,7 +49,7 @@ Please open issues or submit pull requests for bug fixes or new features.
 
 ## License
 
-This project is licensed under the MIT License.
+This project is licensed under the MIT License..
 
 ## Contact
 
