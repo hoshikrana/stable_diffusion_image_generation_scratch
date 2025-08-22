@@ -5,18 +5,13 @@ import traceback
 from model_loader import load_input_image, StableDiffusionEngine
 import torch
 
-# Setup device and model engine
 device = "cuda" if torch.cuda.is_available() else "cpu"
 engine = StableDiffusionEngine(device=device)
+print("Loading models...")
 engine.load_models()
+print("Models loaded.")
 
-def generate_image(
-    prompt,
-    neg_prompt="blurry, low-res",
-    strength=0.8,
-    steps=20,
-    input_image_file=None
-):
+def generate_image(prompt, neg_prompt="blurry, low-res", strength=0.8, steps=20, input_image_file=None):
     try:
         input_image = None
         if input_image_file is not None:
@@ -54,13 +49,10 @@ with gr.Blocks() as demo:
     strength = gr.Slider(label="Strength", minimum=0.1, maximum=1.0, step=0.01, value=0.8)
     steps = gr.Slider(label="Inference Steps", minimum=10, maximum=100, step=1, value=20)
     input_image = gr.Image(label="Input Image (optional)", type="pil")
-
     output_image = gr.Image(label="Generated Image")
     status = gr.Textbox(label="Status", interactive=False, value="")
-
     generate_button = gr.Button("Generate Image")
 
-    # When button clicked, show loading message first, then run generation
     generate_button.click(set_loading, [], status)
     generate_button.click(generate_image, [prompt, neg_prompt, strength, steps, input_image], [output_image, status])
 
