@@ -1,4 +1,4 @@
-python==3.11.3
+python
 gradio
 torch
 numpy
