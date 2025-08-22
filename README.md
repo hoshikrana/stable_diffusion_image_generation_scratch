@@ -30,7 +30,7 @@ cd stable_diffusion_image_generation_scratch
 
 Install dependencies here, e.g.,
 pip install -r requirements.txt
-text
+
 
 ## Usage
 
@@ -38,9 +38,9 @@ Run the application locally or deploy to Hugging Face Spaces for easy access.
 
 Example command to start the app (adjust according to your setup):
 
-streamlit run app.py
+python app.py
 
-text
+
 
 ## Contributing
 
@@ -53,6 +53,6 @@ This project is licensed under the MIT License.
 
 ## Contact
 
-Created by Hoshi Krana  
+Created by Hoshik Rana.  
 GitHub: [hoshikrana](https://github.com/hoshikrana)  
 Hugging Face: [hoshikrana](https://huggingface.co/hoshikrana)
