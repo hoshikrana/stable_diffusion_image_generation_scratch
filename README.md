@@ -10,4 +10,4 @@ pinned: false
 short_description: 'image generation powered by stable diffusion '
 ---
 
-Check out the configuration reference at https://huggingface.co/docs/hub/spaces-config-reference
+Check out the configuration reference at https://huggingface.co/docs/hub/spaces-config-reference# Test push
