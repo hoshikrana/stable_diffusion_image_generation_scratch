@@ -1,154 +1,65 @@
 import gradio as gr
 import numpy as np
-import random
+from PIL import Image
+import traceback
+from model_loader import load_input_image, StableDiffusionEngine
 
-# import spaces #[uncomment to use ZeroGPU]
-from diffusers import DiffusionPipeline
-import torch
+engine = StableDiffusionEngine(device='cpu')
+engine.load_models()
 
-device = "cuda" if torch.cuda.is_available() else "cpu"
-model_repo_id = "stabilityai/sdxl-turbo"  # Replace to the model you would like to use
-
-if torch.cuda.is_available():
-    torch_dtype = torch.float16
-else:
-    torch_dtype = torch.float32
-
-pipe = DiffusionPipeline.from_pretrained(model_repo_id, torch_dtype=torch_dtype)
-pipe = pipe.to(device)
-
-MAX_SEED = np.iinfo(np.int32).max
-MAX_IMAGE_SIZE = 1024
-
-
-# @spaces.GPU #[uncomment to use ZeroGPU]
-def infer(
+def generate_image(
     prompt,
-    negative_prompt,
-    seed,
-    randomize_seed,
-    width,
-    height,
-    guidance_scale,
-    num_inference_steps,
-    progress=gr.Progress(track_tqdm=True),
+    uncond_prompt="blurry, low-res",
+    strength=0.8,
+    do_cfg=True,
+    cfg_scale=7.5,
+    sampler_name="ddpm",
+    n_inference_steps=20,
+    seed=42,
+    input_image_file=None
 ):
-    if randomize_seed:
-        seed = random.randint(0, MAX_SEED)
+    try:
+        input_image = None
+        if input_image_file is not None:
+            input_image = load_input_image(input_image_file, device='cpu')
+        
+        generated_image = engine.generate_image(
+            prompt=prompt,
+            uncond_prompt=uncond_prompt,
+            input_image=input_image,
+            strength=strength,
+            do_cfg=do_cfg,
+            cfg_scale=cfg_scale,
+            sampler_name=sampler_name,
+            n_inference_steps=n_inference_steps,
+            seed=seed,
+        )
 
-    generator = torch.Generator().manual_seed(seed)
+        if not isinstance(generated_image, np.ndarray):
+            generated_image = np.array(generated_image)
+        if generated_image.dtype != np.uint8:
+            generated_image = (generated_image * 255).clip(0, 255).astype('uint8')
+        
+        img = Image.fromarray(generated_image)
+        return img
 
-    image = pipe(
-        prompt=prompt,
-        negative_prompt=negative_prompt,
-        guidance_scale=guidance_scale,
-        num_inference_steps=num_inference_steps,
-        width=width,
-        height=height,
-        generator=generator,
-    ).images[0]
+    except Exception as e:
+        return f"Error: {e}\n\nTraceback:\n{traceback.format_exc()}"
 
-    return image, seed
-
-
-examples = [
-    "Astronaut in a jungle, cold color palette, muted colors, detailed, 8k",
-    "An astronaut riding a green horse",
-    "A delicious ceviche cheesecake slice",
-]
-
-css = """
-#col-container {
-    margin: 0 auto;
-    max-width: 640px;
-}
-"""
-
-with gr.Blocks(css=css) as demo:
-    with gr.Column(elem_id="col-container"):
-        gr.Markdown(" # Text-to-Image Gradio Template")
-
-        with gr.Row():
-            prompt = gr.Text(
-                label="Prompt",
-                show_label=False,
-                max_lines=1,
-                placeholder="Enter your prompt",
-                container=False,
-            )
-
-            run_button = gr.Button("Run", scale=0, variant="primary")
-
-        result = gr.Image(label="Result", show_label=False)
-
-        with gr.Accordion("Advanced Settings", open=False):
-            negative_prompt = gr.Text(
-                label="Negative prompt",
-                max_lines=1,
-                placeholder="Enter a negative prompt",
-                visible=False,
-            )
-
-            seed = gr.Slider(
-                label="Seed",
-                minimum=0,
-                maximum=MAX_SEED,
-                step=1,
-                value=0,
-            )
-
-            randomize_seed = gr.Checkbox(label="Randomize seed", value=True)
-
-            with gr.Row():
-                width = gr.Slider(
-                    label="Width",
-                    minimum=256,
-                    maximum=MAX_IMAGE_SIZE,
-                    step=32,
-                    value=1024,  # Replace with defaults that work for your model
-                )
-
-                height = gr.Slider(
-                    label="Height",
-                    minimum=256,
-                    maximum=MAX_IMAGE_SIZE,
-                    step=32,
-                    value=1024,  # Replace with defaults that work for your model
-                )
-
-            with gr.Row():
-                guidance_scale = gr.Slider(
-                    label="Guidance scale",
-                    minimum=0.0,
-                    maximum=10.0,
-                    step=0.1,
-                    value=0.0,  # Replace with defaults that work for your model
-                )
-
-                num_inference_steps = gr.Slider(
-                    label="Number of inference steps",
-                    minimum=1,
-                    maximum=50,
-                    step=1,
-                    value=2,  # Replace with defaults that work for your model
-                )
-
-        gr.Examples(examples=examples, inputs=[prompt])
-    gr.on(
-        triggers=[run_button.click, prompt.submit],
-        fn=infer,
-        inputs=[
-            prompt,
-            negative_prompt,
-            seed,
-            randomize_seed,
-            width,
-            height,
-            guidance_scale,
-            num_inference_steps,
-        ],
-        outputs=[result, seed],
-    )
+# Define Gradio interface
+iface = gr.Interface(
+    fn=generate_image,
+    inputs=[
+    gr.Textbox(lines=2, label="Prompt"),
+    gr.Textbox(value="blurry, low-res", label="Negitive Prompt (optional)", lines=1),
+    gr.Slider(minimum=0.1, maximum=1.0, value=0.8, label="Strength"),
+    gr.Slider(minimum=10, maximum=100, step=1, value=20, label="Inference Steps"),
+    gr.Image(type="pil", label="Input Image (optional)"),
+    ],
+    outputs=gr.Image(type="pil"),
+    title="Stable Diffusion Image Generator"
+)
 
 if __name__ == "__main__":
-    demo.launch()
+    iface.queue()
+    iface.launch(share=True)
