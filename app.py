@@ -64,4 +64,4 @@ iface = gr.Interface(
 
 if __name__ == "__main__":
     iface.queue()
-    iface.launch(share=True)
+    iface.launch()
