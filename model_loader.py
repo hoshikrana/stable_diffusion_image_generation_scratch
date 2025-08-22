@@ -14,7 +14,11 @@ def load_input_image(image_file, device='cpu'):
     """
     Load and preprocess an input image file to a tensor on the specified device.
     """
-    image = Image.open(image_file).convert("RGB")
+    # If input is already a PIL Image, use it directly; else open from file
+    if isinstance(image_file, Image.Image):
+        image = image_file.convert("RGB")
+    else:
+        image = Image.open(image_file).convert("RGB")
     image = image.resize((512, 512))
     image = np.array(image).astype(np.float32) / 255.0
     tensor = torch.from_numpy(image).permute(2, 0, 1).unsqueeze(0).to(device)
@@ -103,43 +107,40 @@ class StableDiffusionEngine:
         return None
 
     def generate_image(
-        self,
         prompt,
-        uncond_prompt='',
-        input_image=None,
-        strength=0.75,
-        do_cfg=True,
-        cfg_scale=7.5,
-        sampler_name='ddpm',
-        n_inference_steps=50,
-        seed=None
+        neg_prompt="blurry, low-res",
+        strength=0.8,
+        steps=20,
+        input_image_file=None,
     ):
-        from PIL import Image
-
-        if self.models is None or self.tokenizer is None:
-            raise RuntimeError("Models and tokenizer not loaded. Call load_models() first.")
-
-        input_tensor = self.preprocess_input_image(input_image)
-
-        output_array = generate(
+    try:
+        input_image = None
+        if input_image_file is not None:
+            # If input_image_file is a PIL Image, it will be handled properly
+            input_image = load_input_image(input_image_file, device=engine.device)
+        print("Generating image please wait.....")
+        generated_image = engine.generate_image(
             prompt=prompt,
-            uncond_prompt=uncond_prompt,
-            input_image=input_tensor.squeeze() if input_tensor is not None else None,
+            uncond_prompt=neg_prompt,
+            input_image=input_image,
             strength=strength,
-            do_cfg=do_cfg,
-            cfg_scale=cfg_scale,
-            sampler_name=sampler_name,
-            n_inference_steps=n_inference_steps,
-            models=self.models,
-            seed=seed,
-            device=self.device,
-            tokenizer=self.tokenizer,
+            do_cfg=True,
+            cfg_scale=7.5,
+            sampler_name="ddpm",
+            n_inference_steps=steps,
+            seed=42,
         )
 
-        output_image = Image.fromarray(output_array)
-        print("Image generation complete.")
-        return output_image
+        if not isinstance(generated_image, np.ndarray):
+            generated_image = np.array(generated_image)
+        if generated_image.dtype != np.uint8:
+            generated_image = (generated_image * 255).clip(0, 255).astype('uint8')
 
+        img = Image.fromarray(generated_image)
+        return img, ""
+
+    except Exception as e:
+        return None, f"Error: {e}\n\nTraceback:\n{traceback.format_exc()}"
 
 # Initialize engine and load models
 device = "cuda" if torch.cuda.is_available() else "cpu"
