@@ -45,7 +45,7 @@ def generate_image(prompt, neg_prompt="blurry, low-res", strength=0.8, steps=20,
 
 
 def set_loading():
-    return "Image generating, please wait..."
+    return "Image generating, please wait...."
 
 
 with gr.Blocks() as demo:
