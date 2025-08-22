@@ -5,25 +5,16 @@ import traceback
 from model_loader import load_input_image, StableDiffusionEngine
 import torch
 
+# Setup device and model engine
 device = "cuda" if torch.cuda.is_available() else "cpu"
 engine = StableDiffusionEngine(device=device)
 engine.load_models()
 
-def set_loading():
-    return "Image generating, please wait..."
-
-def clear_status():
-    return ""
-
 def generate_image(
     prompt,
-    uncond_prompt="blurry, low-res",
+    neg_prompt="blurry, low-res",
     strength=0.8,
-    do_cfg=True,
-    cfg_scale=7.5,
-    sampler_name="ddpm",
-    n_inference_steps=20,
-    seed=42,
+    steps=20,
     input_image_file=None
 ):
     try:
@@ -33,14 +24,14 @@ def generate_image(
         print("Generating image please wait.....")   
         generated_image = engine.generate_image(
             prompt=prompt,
-            uncond_prompt=uncond_prompt,
+            uncond_prompt=neg_prompt,
             input_image=input_image,
             strength=strength,
-            do_cfg=do_cfg,
-            cfg_scale=cfg_scale,
-            sampler_name=sampler_name,
-            n_inference_steps=n_inference_steps,
-            seed=seed,
+            do_cfg=True,
+            cfg_scale=7.5,
+            sampler_name="ddpm",
+            n_inference_steps=steps,
+            seed=42,
         )
 
         if not isinstance(generated_image, np.ndarray):
@@ -54,26 +45,23 @@ def generate_image(
     except Exception as e:
         return None, f"Error: {e}\n\nTraceback:\n{traceback.format_exc()}"
 
+def set_loading():
+    return "Image generating, please wait..."
+
 with gr.Blocks() as demo:
-    prompt = gr.Textbox(lines=2, label="Prompt")
-    negative_prompt = gr.Textbox(value="blurry, low-res", label="Negative Prompt (optional)", lines=1)
-    strength = gr.Slider(minimum=0.1, maximum=1.0, value=0.8, label="Strength")
-    steps = gr.Slider(minimum=10, maximum=100, step=1, value=20, label="Inference Steps")
-    input_image = gr.Image(type="pil", label="Input Image (optional)")
-    
-    output_image = gr.Image(type="pil")
-    status = gr.Textbox(value="", interactive=False, label="Status")
+    prompt = gr.Textbox(label="Prompt", lines=2)
+    neg_prompt = gr.Textbox(label="Negative Prompt", value="blurry, low-res", lines=1)
+    strength = gr.Slider(label="Strength", minimum=0.1, maximum=1.0, step=0.01, value=0.8)
+    steps = gr.Slider(label="Inference Steps", minimum=10, maximum=100, step=1, value=20)
+    input_image = gr.Image(label="Input Image (optional)", type="pil")
 
-    btn = gr.Button("Generate")
+    output_image = gr.Image(label="Generated Image")
+    status = gr.Textbox(label="Status", interactive=False, value="")
 
-    # On button click, first update the status box to loading message
-    btn.click(set_loading, inputs=None, outputs=status)
-    # Then generate the image; this will also clear the status message on success or show error
-    btn.click(
-        generate_image,
-        inputs=[prompt, negative_prompt, strength, True, 7.5, "ddpm", steps, 42, input_image],
-        outputs=[output_image, status]
-    )
-    # Optionally clear status after some time with a timer or user action (not shown here)
+    generate_button = gr.Button("Generate Image")
+
+    # When button clicked, show loading message first, then run generation
+    generate_button.click(set_loading, [], status)
+    generate_button.click(generate_image, [prompt, neg_prompt, strength, steps, input_image], [output_image, status])
 
 demo.launch()
