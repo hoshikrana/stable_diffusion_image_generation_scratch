@@ -6,3 +6,4 @@ transformers
 pytorch-lightning
 pillow
 matplotlib
+traceback
