@@ -6,6 +6,7 @@ from Stable_Diffusion import clip, encoder, decoder, diffusion
 from pipeline import generate
 from PIL import Image
 import numpy as np
+import traceback
 
 def load_input_image(image_file, device='cpu'):
     """
@@ -18,13 +19,14 @@ def load_input_image(image_file, device='cpu'):
     tensor = torch.from_numpy(image).permute(2, 0, 1).unsqueeze(0).to(device)
     return tensor
 
+
 class StableDiffusionEngine:
     def __init__(self, device):
         self.device = device
         self.models = None
         self.tokenizer = None
 
-        # Hugging Face repo info
+        # Hugging Face repo and filenames - update if necessary
         self.repo_id = "hoshikrana/stable_diffusion_image_generation_v1"
         self.clip_filename = "model_safetensors_files/clip_model_state_dict.safetensors"
         self.encoder_filename = "model_safetensors_files/encoder_model_state_dict.safetensors"
@@ -32,13 +34,20 @@ class StableDiffusionEngine:
         self.diffusion_filename = "model_safetensors_files/diffusion_model_state_dict_merged.safetensors"
 
     def download_and_load(self, filename):
-        local_path = hf_hub_download(
-            repo_id=self.repo_id,
-            filename=filename,
-            repo_type="model",
-        )
-        weights = load_file(local_path, device=self.device)
-        return weights
+        try:
+            local_path = hf_hub_download(
+                repo_id=self.repo_id,
+                filename=filename,
+                repo_type="model",
+                # If your repo is private, uncomment and set your token here:
+                # use_auth_token=True
+            )
+            print(f"Downloaded {filename} to local path: {local_path}")
+            weights = load_file(local_path, device=self.device)
+            return weights
+        except Exception as e:
+            print(f"Failed to download/load {filename}: {e}")
+            raise
 
     def load_models(self):
         print("Downloading and loading models from Hugging Face Hub...")
@@ -74,16 +83,19 @@ class StableDiffusionEngine:
                 'diffusion': diffusion_model,
                 'tokenizer': self.tokenizer
             }
-
             return True
 
         except Exception as e:
             print(f"Error downloading or loading models: {e}")
+            print(traceback.format_exc())
             self.models = None
             self.tokenizer = None
             return False
 
     def preprocess_input_image(self, input_image):
+        import numpy as np
+        import torch
+
         if input_image is not None:
             if isinstance(input_image, torch.Tensor):
                 return input_image.detach().clone().to(self.device)
@@ -105,15 +117,18 @@ class StableDiffusionEngine:
         n_inference_steps=50,
         seed=None
     ):
+        from PIL import Image
+        from pipeline import generate
+
         if self.models is None or self.tokenizer is None:
             raise RuntimeError("Models and tokenizer not loaded. Call load_models() first.")
 
-        input_image_for_generate = self.preprocess_input_image(input_image)
+        input_tensor = self.preprocess_input_image(input_image)
 
         output_array = generate(
             prompt=prompt,
             uncond_prompt=uncond_prompt,
-            input_image=input_image_for_generate.squeeze() if input_image_for_generate is not None else None,
+            input_image=input_tensor.squeeze() if input_tensor is not None else None,
             strength=strength,
             do_cfg=do_cfg,
             cfg_scale=cfg_scale,
@@ -126,6 +141,7 @@ class StableDiffusionEngine:
         )
 
         output_image = Image.fromarray(output_array)
+        print("Image generation complete.")
         return output_image
 
 
