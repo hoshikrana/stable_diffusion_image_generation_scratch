@@ -23,8 +23,8 @@ def generate_image(
     try:
         input_image = None
         if input_image_file is not None:
-            input_image = load_input_image(input_image_file, device='cpu')
-        
+              input_image = load_input_image(input_image_file, device='cpu')
+        print("Generating image please wait.....")   
         generated_image = engine.generate_image(
             prompt=prompt,
             uncond_prompt=uncond_prompt,
