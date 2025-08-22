@@ -17,6 +17,7 @@ def load_input_image(image_file, device='cpu'):
     image = image.resize((512, 512))
     image = np.array(image).astype(np.float32) / 255.0
     tensor = torch.from_numpy(image).permute(2, 0, 1).unsqueeze(0).to(device)
+    print("Loaded the input image.")
     return tensor
 
 
@@ -68,12 +69,13 @@ class StableDiffusionEngine:
             decoder_model.load_state_dict(decoder_weights)
             diffusion_model.load_state_dict(diffusion_weights)
 
+
             tokenizer = CLIPTokenizer.from_pretrained(
                 "hoshikrana/stable_diffusion_image_generation_v1", 
                 subfolder="tokenizer"
             )
 
-            print(f"Tokenizer loaded from repo {self.repo_id}")
+            print("Models successfully loaded.")
 
             clip_model.eval()
             encoder_model.eval()
