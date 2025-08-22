@@ -29,7 +29,7 @@ class StableDiffusionEngine:
         self.clip_filename = "model_safetensors_files/clip_model_state_dict.safetensors"
         self.encoder_filename = "model_safetensors_files/encoder_model_state_dict.safetensors"
         self.decoder_filename = "model_safetensors_files/decoder_model_state_dict.safetensors"
-        self.diffusion_filename = "model_safetensors_files/diffusion_model_state_dict.safetensors"
+        self.diffusion_filename = "model_safetensors_files/diffusion_model_state_dict_merge.safetensors"
 
     def download_and_load(self, filename):
         local_path = hf_hub_download(
