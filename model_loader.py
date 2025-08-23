@@ -10,15 +10,19 @@ from Stable_Diffusion import clip, encoder, decoder, diffusion
 from pipeline import generate
 
 
-def load_input_image(image_file, device='cpu'):
+# This function no longer opens the file, but directly processes the PIL Image object
+def load_input_image(pil_image, device='cpu'):
     """
-    Load and preprocess an input image file to a tensor on the specified device.
+    Preprocess a PIL Image object to a tensor on the specified device.
     """
-    image = Image.open(image_file).convert("RGB")
+    if pil_image is None:
+        return None
+    
+    image = pil_image.convert("RGB")
     image = image.resize((512, 512))
     image = np.array(image).astype(np.float32) / 255.0
     tensor = torch.from_numpy(image).permute(2, 0, 1).unsqueeze(0).to(device)
-    print("Loaded the input image.")
+    print("Loaded and preprocessed the input image.")
     return tensor
 
 
@@ -39,7 +43,6 @@ class StableDiffusionEngine:
             repo_id=self.repo_id,
             filename=filename,
             repo_type="model",
-            # use_auth_token=True  # if private repo, uncomment this
         )
         print(f"Downloaded {filename} to local path: {local_path}")
         weights = load_file(local_path, device=self.device)
@@ -47,13 +50,14 @@ class StableDiffusionEngine:
 
     def load_models(self):
         print("Downloading and loading models from Hugging Face Hub...")
-
-        clip_model = clip.CLIP().to(self.device)
-        encoder_model = encoder.VAE_Encoder().to(self.device)
-        decoder_model = decoder.VAE_Decoder().to(self.device)
-        diffusion_model = diffusion.Diffusion().to(self.device)
-
+        
+        # Check for existence of clip, encoder, etc. before moving forward
         try:
+            clip_model = clip.CLIP().to(self.device)
+            encoder_model = encoder.VAE_Encoder().to(self.device)
+            decoder_model = decoder.VAE_Decoder().to(self.device)
+            diffusion_model = diffusion.Diffusion().to(self.device)
+
             clip_weights = self.download_and_load(self.clip_filename)
             encoder_weights = self.download_and_load(self.encoder_filename)
             decoder_weights = self.download_and_load(self.decoder_filename)
@@ -114,12 +118,11 @@ class StableDiffusionEngine:
         n_inference_steps=50,
         seed=None
     ):
-        from PIL import Image
-
         if self.models is None or self.tokenizer is None:
             raise RuntimeError("Models and tokenizer not loaded. Call load_models() first.")
-
-        input_tensor = self.preprocess_input_image(input_image)
+        
+        # `input_image` is already a tensor, so no more preprocessing here
+        input_tensor = input_image
 
         output_array = generate(
             prompt=prompt,
@@ -152,12 +155,14 @@ def generate_image(
         neg_prompt="blurry, low-res",
         strength=0.8,
         steps=20,
-        input_image_file=None,
+        input_image_file=None, # This is now a PIL Image object
 ):
     try:
         input_image = None
         if input_image_file is not None:
+            # Pass the PIL Image directly to the modified function
             input_image = load_input_image(input_image_file, device='cpu')
+        
         print("Generating image please wait.....")
         generated_image = engine.generate_image(
             prompt=prompt,
@@ -171,13 +176,8 @@ def generate_image(
             seed=42,
         )
 
-        if not isinstance(generated_image, np.ndarray):
-            generated_image = np.array(generated_image)
-        if generated_image.dtype != np.uint8:
-            generated_image = (generated_image * 255).clip(0, 255).astype('uint8')
-
-        img = Image.fromarray(generated_image)
-        return img, ""
+        # The engine's `generate_image` already returns a PIL Image
+        return generated_image, ""
 
     except Exception as e:
         return None, f"Error: {e}\n\nTraceback:\n{traceback.format_exc()}"
@@ -192,6 +192,7 @@ with gr.Blocks() as demo:
     neg_prompt = gr.Textbox(label="Negative Prompt", value="blurry, low-res", lines=1)
     strength = gr.Slider(label="Strength", minimum=0.1, maximum=1.0, step=0.01, value=0.8)
     steps = gr.Slider(label="Inference Steps", minimum=10, maximum=100, step=1, value=20)
+    # The Gradio component type="pil" returns a PIL Image object
     input_image = gr.Image(label="Input Image (optional)", type="pil")
 
     output_image = gr.Image(label="Generated Image")
@@ -202,18 +203,3 @@ with gr.Blocks() as demo:
     generate_button.click(generate_image, [prompt, neg_prompt, strength, steps, input_image], [output_image, status])
 
 demo.launch()
-
-
-
-# # Usage example:
-# engine = StableDiffusionEngine(device='cpu')
-# if engine.load_models():
-#     generated_image = engine.generate_image(prompt="A sunset over a mountain")
-
-
-#     plt.imshow(generated_image)
-#     plt.axis('off')
-#     plt.show()
-#     Image.save(generated_image, "generated_image.png")
-# else:
-#     print("Failed to load models. Please check the paths and try again.")
