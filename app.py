@@ -6,11 +6,9 @@ from model_loader import load_input_image, StableDiffusionEngine
 import torch
 
 # Assume model_loader.py contains load_input_image and StableDiffusionEngine
-# For image examples, you need placeholder image files in the same directory.
-# Example images: `lion_warrior.png` and `cyborg_lion.png`
 
-# Initialize the Gradio UI early with a loading message
-with gr.Blocks(theme=gr.themes.Soft()) as demo:
+# --- Initial UI for loading state ---
+with gr.Blocks(theme=gr.themes.Soft()) as loading_ui:
     gr.Markdown(
         """
         <div align="center">
@@ -19,7 +17,8 @@ with gr.Blocks(theme=gr.themes.Soft()) as demo:
         </div>
         """
     )
-    # The rest of the UI will be added after the models are loaded.
+loading_ui.launch()
+
 
 # --- Model Loading Logic ---
 device = "cuda" if torch.cuda.is_available() else "cpu"
@@ -33,7 +32,6 @@ def generate_image(prompt, neg_prompt="blurry, low-res", strength=0.8, steps=20,
     try:
         input_image = None
         if input_image_file is not None:
-            # Assuming load_input_image can handle PIL images directly
             input_image = load_input_image(input_image_file, device=device)
         print("Generating image for prompt:", prompt)
         generated_image = engine.generate_image(
@@ -57,18 +55,16 @@ def generate_image(prompt, neg_prompt="blurry, low-res", strength=0.8, steps=20,
 def set_loading():
     return "Image generating, please wait...."
 
-# Define a list of example inputs
-# Each inner list corresponds to the inputs of the generate_image function:
-# [prompt, neg_prompt, strength, steps, input_image]
+# Define a list of example inputs, including URLs for image examples
 examples = [
     ["A cinematic photorealistic headshot of a lion-like man in a dimly lit, futuristic city. Dynamic lighting, detailed fur, piercing eyes. High detail, 8k.", "blurry, low-res, amateur, monochrome", 0.8, 50, None],
     ["A mythical lion-headed warrior, with golden armor and a glowing spear, standing in an ancient temple. Epic fantasy art, rich colors, intricate details.", "blurry, dull colors, simple", 0.7, 40, None],
     ["Anthropomorphic lion-man in a cyberpunk bar, drinking a neon-colored cocktail. Synthwave aesthetic, detailed textures, expressive face.", "out of frame, deformed, blurry", 0.9, 60, None],
-    ["A photorealistic portrait of a human-lion hybrid warrior, high detail, studio lighting, looking into camera", "blurry, low-res", 0.8, 20, "lion_warrior.png"],
-    ["A cyberpunk portrait of a futuristic cyborg lion, highly detailed, neon lights", "blurry, low-res", 0.9, 30, "cyborg_lion.png"],
+    ["A photorealistic portrait of a human-lion hybrid warrior, high detail, studio lighting, looking into camera", "blurry, low-res", 0.8, 20, "https://images.unsplash.com/photo-1627915545939-f9f3032b4b3b"],  # Public URL
+    ["A cyberpunk portrait of a futuristic cyborg lion, highly detailed, neon lights", "blurry, low-res", 0.9, 30, "https://images.unsplash.com/photo-1628045615822-09c3132e4d41"],  # Public URL
 ]
 
-# Create the full Gradio UI after the model is loaded
+# --- Main Gradio UI ---
 with gr.Blocks(theme=gr.themes.Soft()) as demo:
     gr.Markdown(
         """
@@ -105,7 +101,8 @@ with gr.Blocks(theme=gr.themes.Soft()) as demo:
         inputs=[prompt, neg_prompt, strength, steps, input_image],
         outputs=[output_image, status],
         fn=generate_image,
-        cache_examples=False, # Set to False for debugging
+        cache_examples=False,
     )
 
-demo.launch()
+# The `loading_ui` is launched first and then replaced by `demo` once models are loaded.
+demo.queue(max_size=10).launch()
