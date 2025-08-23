@@ -9,19 +9,33 @@ import torch
 # For image examples, you need placeholder image files in the same directory.
 # Example images: `lion_warrior.png` and `cyborg_lion.png`
 
+# Initialize the Gradio UI early with a loading message
+with gr.Blocks(theme=gr.themes.Soft()) as demo:
+    gr.Markdown(
+        """
+        <div align="center">
+            <h1>🎨 Stable Diffusion Lion-Man Image Generator</h1>
+            <p><strong>Loading models... Please wait a moment.</strong></p>
+        </div>
+        """
+    )
+    # The rest of the UI will be added after the models are loaded.
+
+# --- Model Loading Logic ---
 device = "cuda" if torch.cuda.is_available() else "cpu"
 engine = StableDiffusionEngine(device=device)
 print("Loading models...")
 engine.load_models()
 print("Models loaded.")
 
+# --- Gradio Function and UI Logic ---
 def generate_image(prompt, neg_prompt="blurry, low-res", strength=0.8, steps=20, input_image_file=None):
     try:
         input_image = None
         if input_image_file is not None:
             # Assuming load_input_image can handle PIL images directly
             input_image = load_input_image(input_image_file, device=device)
-        print("Generating image please wait.....")
+        print("Generating image for prompt:", prompt)
         generated_image = engine.generate_image(
             prompt=prompt,
             uncond_prompt=neg_prompt,
@@ -33,11 +47,12 @@ def generate_image(prompt, neg_prompt="blurry, low-res", strength=0.8, steps=20,
             n_inference_steps=steps,
             seed=42,
         )
-
+        print("Image generation complete.")
         return generated_image, ""
-
     except Exception as e:
-        return None, f"Error: {e}\n\nTraceback:\n{traceback.format_exc()}"
+        print(f"Error during image generation: {e}")
+        print(traceback.format_exc())
+        return None, f"Error: {e}"
 
 def set_loading():
     return "Image generating, please wait...."
@@ -53,6 +68,7 @@ examples = [
     ["A cyberpunk portrait of a futuristic cyborg lion, highly detailed, neon lights", "blurry, low-res", 0.9, 30, "cyborg_lion.png"],
 ]
 
+# Create the full Gradio UI after the model is loaded
 with gr.Blocks(theme=gr.themes.Soft()) as demo:
     gr.Markdown(
         """
@@ -89,7 +105,7 @@ with gr.Blocks(theme=gr.themes.Soft()) as demo:
         inputs=[prompt, neg_prompt, strength, steps, input_image],
         outputs=[output_image, status],
         fn=generate_image,
-        cache_examples=True,
+        cache_examples=False, # Set to False for debugging
     )
 
 demo.launch()
