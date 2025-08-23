@@ -7,14 +7,13 @@ from huggingface_hub import hf_hub_download
 from safetensors.torch import load_file
 from transformers import CLIPTokenizer
 from Stable_Diffusion import clip, encoder, decoder, diffusion
-from pipeline import generate
+from pipeline import generate # Correctly import the generate function
 
 
 def load_input_image(image_file, device='cpu'):
     """
     Load and preprocess an input image file to a tensor on the specified device.
     """
-    # If input is already a PIL Image, use it directly; else open from file
     if isinstance(image_file, Image.Image):
         image = image_file.convert("RGB")
     else:
@@ -95,58 +94,70 @@ class StableDiffusionEngine:
             self.models = None
             self.tokenizer = None
             return False
+            
+    # Moved inside the class to use the loaded models
+    def generate_image(self, prompt, uncond_prompt, input_image, strength, do_cfg, cfg_scale, sampler_name, n_inference_steps, seed):
+        if not self.models:
+            raise Exception("Models not loaded. Please call load_models() first.")
+        
+        # Call the generate function from pipeline.py, passing the models
+        return generate(
+            **self.models,
+            prompt=prompt,
+            uncond_prompt=uncond_prompt,
+            input_image=input_image,
+            strength=strength,
+            do_cfg=do_cfg,
+            cfg_scale=cfg_scale,
+            sampler_name=sampler_name,
+            n_inference_steps=n_inference_steps,
+            seed=seed,
+        )
 
-    def preprocess_input_image(self, input_image):
-        if input_image is not None:
-            if isinstance(input_image, torch.Tensor):
-                return input_image.detach().clone().to(self.device)
-            elif isinstance(input_image, np.ndarray):
-                return torch.from_numpy(input_image).to(self.device)
-            else:
-                raise ValueError("input_image must be a numpy array or torch tensor")
-        return None
-
-    def generate_image(
-        prompt,
-        neg_prompt="blurry, low-res",
-        strength=0.8,
-        steps=20,
-        input_image_file=None,
-    ):
-        try:
-            input_image = None
-            if input_image_file is not None:
-                # If input_image_file is a PIL Image, it will be handled properly
-                input_image = load_input_image(input_image_file, device=engine.device)
-            print("Generating image please wait.....")
-            generated_image = engine.generate_image(
-                prompt=prompt,
-                uncond_prompt=neg_prompt,
-                input_image=input_image,
-                strength=strength,
-                do_cfg=True,
-                cfg_scale=7.5,
-                sampler_name="ddpm",
-                n_inference_steps=steps,
-                seed=42,
-            )
-    
-            if not isinstance(generated_image, np.ndarray):
-                generated_image = np.array(generated_image)
-            if generated_image.dtype != np.uint8:
-                generated_image = (generated_image * 255).clip(0, 255).astype('uint8')
-    
-            img = Image.fromarray(generated_image)
-            return img, ""
-    
-        except Exception as e:
-            return None, f"Error: {e}\n\nTraceback:\n{traceback.format_exc()}"
 
 # Initialize engine and load models
 device = "cuda" if torch.cuda.is_available() else "cpu"
 engine = StableDiffusionEngine(device=device)
-engine.load_models()
 
+# Gradio handler for image generation
+def gradio_generate_image(prompt, neg_prompt, strength, steps, input_image_file):
+    try:
+        # Load models once for the Gradio app lifespan
+        if not engine.models:
+            success = engine.load_models()
+            if not success:
+                return None, "Failed to load models. Check logs."
+
+        input_image = None
+        if input_image_file is not None:
+            input_image = load_input_image(input_image_file, device=engine.device)
+        
+        print("Generating image please wait.....")
+        generated_image = engine.generate_image(
+            prompt=prompt,
+            uncond_prompt=neg_prompt,
+            input_image=input_image,
+            strength=strength,
+            do_cfg=True,
+            cfg_scale=7.5,
+            sampler_name="ddpm",
+            n_inference_steps=steps,
+            seed=42,
+        )
+        
+        if not isinstance(generated_image, np.ndarray):
+            # Ensure the output is a NumPy array for PIL conversion
+            generated_image = np.array(generated_image)
+
+        # Convert to uint8 for PIL and return
+        if generated_image.dtype != np.uint8:
+            generated_image = (generated_image * 255).clip(0, 255).astype('uint8')
+
+        img = Image.fromarray(generated_image)
+        return img, "Image generated successfully!"
+
+    except Exception as e:
+        return None, f"Error: {e}\n\nTraceback:\n{traceback.format_exc()}"
 
 
 def set_loading():
@@ -154,32 +165,26 @@ def set_loading():
 
 
 with gr.Blocks() as demo:
-    prompt = gr.Textbox(label="Prompt", lines=2)
-    neg_prompt = gr.Textbox(label="Negative Prompt", value="blurry, low-res", lines=1)
-    strength = gr.Slider(label="Strength", minimum=0.1, maximum=1.0, step=0.01, value=0.8)
-    steps = gr.Slider(label="Inference Steps", minimum=10, maximum=100, step=1, value=20)
-    input_image = gr.Image(label="Input Image (optional)", type="pil")
+    gr.Markdown("## Stable Diffusion Image Generation")
+    
+    with gr.Row():
+        with gr.Column():
+            prompt = gr.Textbox(label="Prompt", lines=2)
+            neg_prompt = gr.Textbox(label="Negative Prompt", value="blurry, low-res", lines=1)
+            strength = gr.Slider(label="Strength", minimum=0.1, maximum=1.0, step=0.01, value=0.8)
+            steps = gr.Slider(label="Inference Steps", minimum=10, maximum=100, step=1, value=20)
+            input_image = gr.Image(label="Input Image (optional)", type="pil")
+            generate_button = gr.Button("Generate Image")
+            status = gr.Textbox(label="Status", interactive=False, value="")
+        with gr.Column():
+            output_image = gr.Image(label="Generated Image")
 
-    output_image = gr.Image(label="Generated Image")
-    status = gr.Textbox(label="Status", interactive=False, value="")
-    generate_button = gr.Button("Generate Image")
-
-    generate_button.click(set_loading, [], status)
-    generate_button.click(generate_image, [prompt, neg_prompt, strength, steps, input_image], [output_image, status])
+    # Connect the button click to the handler function
+    generate_button.click(set_loading, outputs=[status])
+    generate_button.click(
+        fn=gradio_generate_image,
+        inputs=[prompt, neg_prompt, strength, steps, input_image],
+        outputs=[output_image, status]
+    )
 
 demo.launch()
-
-
-
-# # Usage example:
-# engine = StableDiffusionEngine(device='cpu')
-# if engine.load_models():
-#     generated_image = engine.generate_image(prompt="A sunset over a mountain")
-
-
-#     plt.imshow(generated_image)
-#     plt.axis('off')
-#     plt.show()
-#     Image.save(generated_image, "generated_image.png")
-# else:
-#     print("Failed to load models. Please check the paths and try again.")
