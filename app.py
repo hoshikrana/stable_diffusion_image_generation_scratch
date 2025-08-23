@@ -5,14 +5,15 @@ import traceback
 from model_loader import load_input_image, StableDiffusionEngine
 import torch
 
-# This assumes model_loader.py contains load_input_image and StableDiffusionEngine
+# Assume model_loader.py contains load_input_image and StableDiffusionEngine
+# For image examples, you need placeholder image files in the same directory.
+# Example images: `lion_warrior.png` and `cyborg_lion.png`
 
 device = "cuda" if torch.cuda.is_available() else "cpu"
 engine = StableDiffusionEngine(device=device)
 print("Loading models...")
 engine.load_models()
 print("Models loaded.")
-
 
 def generate_image(prompt, neg_prompt="blurry, low-res", strength=0.8, steps=20, input_image_file=None):
     try:
@@ -33,12 +34,10 @@ def generate_image(prompt, neg_prompt="blurry, low-res", strength=0.8, steps=20,
             seed=42,
         )
 
-        # The engine's generate_image already returns a PIL Image, no need for conversion
         return generated_image, ""
 
     except Exception as e:
         return None, f"Error: {e}\n\nTraceback:\n{traceback.format_exc()}"
-
 
 def set_loading():
     return "Image generating, please wait...."
@@ -53,7 +52,6 @@ examples = [
     ["A photorealistic portrait of a human-lion hybrid warrior, high detail, studio lighting, looking into camera", "blurry, low-res", 0.8, 20, "lion_warrior.png"],
     ["A cyberpunk portrait of a futuristic cyborg lion, highly detailed, neon lights", "blurry, low-res", 0.9, 30, "cyborg_lion.png"],
 ]
-
 
 with gr.Blocks(theme=gr.themes.Soft()) as demo:
     gr.Markdown(
@@ -79,8 +77,7 @@ with gr.Blocks(theme=gr.themes.Soft()) as demo:
             output_image = gr.Image(label="Generated Image")
             status = gr.Textbox(label="Status", interactive=False, value="")
 
-    generate_button.click(set_loading, [], status)
-    generate_button.click(
+    generate_button.click(set_loading, [], status).then(
         generate_image,
         [prompt, neg_prompt, strength, steps, input_image],
         [output_image, status]
