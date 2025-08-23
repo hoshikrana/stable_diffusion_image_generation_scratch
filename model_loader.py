@@ -1,4 +1,4 @@
-can you edit in this code import gradio as gr
+import gradio as gr
 import numpy as np
 from PIL import Image
 import traceback
