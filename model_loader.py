@@ -113,75 +113,40 @@ class StableDiffusionEngine:
         steps=20,
         input_image_file=None,
     ):
-    try:
-        input_image = None
-        if input_image_file is not None:
-            # If input_image_file is a PIL Image, it will be handled properly
-            input_image = load_input_image(input_image_file, device=engine.device)
-        print("Generating image please wait.....")
-        generated_image = engine.generate_image(
-            prompt=prompt,
-            uncond_prompt=neg_prompt,
-            input_image=input_image,
-            strength=strength,
-            do_cfg=True,
-            cfg_scale=7.5,
-            sampler_name="ddpm",
-            n_inference_steps=steps,
-            seed=42,
-        )
-
-        if not isinstance(generated_image, np.ndarray):
-            generated_image = np.array(generated_image)
-        if generated_image.dtype != np.uint8:
-            generated_image = (generated_image * 255).clip(0, 255).astype('uint8')
-
-        img = Image.fromarray(generated_image)
-        return img, ""
-
-    except Exception as e:
-        return None, f"Error: {e}\n\nTraceback:\n{traceback.format_exc()}"
+        try:
+            input_image = None
+            if input_image_file is not None:
+                # If input_image_file is a PIL Image, it will be handled properly
+                input_image = load_input_image(input_image_file, device=engine.device)
+            print("Generating image please wait.....")
+            generated_image = engine.generate_image(
+                prompt=prompt,
+                uncond_prompt=neg_prompt,
+                input_image=input_image,
+                strength=strength,
+                do_cfg=True,
+                cfg_scale=7.5,
+                sampler_name="ddpm",
+                n_inference_steps=steps,
+                seed=42,
+            )
+    
+            if not isinstance(generated_image, np.ndarray):
+                generated_image = np.array(generated_image)
+            if generated_image.dtype != np.uint8:
+                generated_image = (generated_image * 255).clip(0, 255).astype('uint8')
+    
+            img = Image.fromarray(generated_image)
+            return img, ""
+    
+        except Exception as e:
+            return None, f"Error: {e}\n\nTraceback:\n{traceback.format_exc()}"
 
 # Initialize engine and load models
 device = "cuda" if torch.cuda.is_available() else "cpu"
 engine = StableDiffusionEngine(device=device)
 engine.load_models()
 
-
-def generate_image(
-        prompt,
-        neg_prompt="blurry, low-res",
-        strength=0.8,
-        steps=20,
-        input_image_file=None,
-):
-    try:
-        input_image = None
-        if input_image_file is not None:
-            input_image = load_input_image(input_image_file, device='cpu')
-        print("Generating image please wait.....")
-        generated_image = engine.generate_image(
-            prompt=prompt,
-            uncond_prompt=neg_prompt,
-            input_image=input_image,
-            strength=strength,
-            do_cfg=True,
-            cfg_scale=7.5,
-            sampler_name="ddpm",
-            n_inference_steps=steps,
-            seed=42,
-        )
-
-        if not isinstance(generated_image, np.ndarray):
-            generated_image = np.array(generated_image)
-        if generated_image.dtype != np.uint8:
-            generated_image = (generated_image * 255).clip(0, 255).astype('uint8')
-
-        img = Image.fromarray(generated_image)
-        return img, ""
-
-    except Exception as e:
-        return None, f"Error: {e}\n\nTraceback:\n{traceback.format_exc()}"
 
 
 def set_loading():
